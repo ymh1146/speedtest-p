@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block t %}SpeedTest-P网速测试{% endblock %}
+{% block m %}
+<div class="con">
+    <header class="hd">
+        <h1>SpeedTest-P</h1>
+        <button id="startTest" class="btn">开始测试</button>
+    </header>
+    <div class="t-sec">
+        <div class="pg-con">
+            <div class="pg-bar">
+                <div class="pg-fill" id="totalProgress"></div>
+            </div>
+            <div class="pg-lab" id="progressLabel">准备开始测试...</div>
+        </div>
+        <div id="results">
+            <div class="r-con">
+                <!-- 结果内容会通过 JavaScript 动态插入 -->
+            </div>
+        </div>
+    </div>
+    <div class="r-grid">
+        <div class="i-sec">
+            <div class="i-crd s-info">
+                <h3>服务器信息</h3>
+                <div class="i-item">
+                    <span class="l">IP:</span>
+                    <span class="v" id="serverIP"></span>
+                </div>
+                <div class="i-item">
+                    <span class="l">系统:</span>
+                    <span class="v" id="serverOS"></span>
+                </div>
+                <div class="i-item">
+                    <span class="l">CPU:</span>
+                    <span class="v" id="serverCPU"></span>
+                </div>
+                <div class="i-item">
+                    <span class="l">内存:</span>
+                    <span class="v" id="serverMemory"></span>
+                </div>
+                <div class="i-item">
+                    <span class="l">硬盘:</span>
+                    <span class="v" id="serverDisk"></span>
+                </div>
+            </div>
+            <div class="i-crd c-info">
+                <h3>用户信息</h3>
+                <div class="i-item">
+                    <span class="l">IP:</span>
+                    <span class="v" id="clientIP"></span>
+                </div>
+                <div class="i-item">
+                    <span class="l">系统:</span>
+                    <span class="v" id="clientOS"></span>
+                </div>
+                <div class="i-item">
+                    <span class="l">国家:</span>
+                    <span class="v" id="clientCountry"></span>
+                </div>
+                <div class="i-item">
+                    <span class="l">地区:</span>
+                    <span class="v" id="clientRegion"></span>
+                </div>
+                <div class="i-item">
+                    <span class="l">城市:</span>
+                    <span class="v" id="clientCity"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="h-sec">
+        <div class="h-hd" id="historyToggle">
+            <h3>历史记录</h3>
+            <span class="t-ico">▼</span>
+        </div>
+        <div id="historyContent" class="h-cnt">
+            <div class="h-tbl-con">
+                <table class="h-tbl">
+                    <thead>
+                        <tr>
+                            <th>测试时间</th>
+                            <th>IP</th>
+                            <th>平均↓(Mb/s)</th>
+                            <th>峰值↓ (Mb/s)</th>
+                            <th>平均↑ (Mb/s)</th>
+                            <th>峰值↑ (Mb/s)</th>
+                            <th>延迟 (ms)</th>
+                            <th>抖动 (ms)</th>
+                            <th>↓/↑ (MB)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyList">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <footer class="ft">
+        <a href="https://github.com/ymh1146/speedtest-p" target="_blank" class="gh">
+            <svg class="gh-ico" viewBox="0 0 24 24">
+                <path
+                    d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
+            </svg>
+            <span>GitHub</span>
+        </a>
+    </footer>
+</div>
+{% endblock %}
+{% block j %}
+<script src="{{ url_for('static', filename='js/speedTest.js') }}?v=1.0.2"></script>
+<script src="{{ url_for('static', filename='js/systemInfo.js') }}?v=1.0.2"></script>
+<script src="{{ url_for('static', filename='js/charts.js') }}?v=1.0.2"></script>
+{% endblock %}
