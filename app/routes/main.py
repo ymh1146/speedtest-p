@@ -217,23 +217,21 @@ def get_recs():
 @app.route("/download_test")
 def dl_test():
     client_ip = get_real_ip() or request.remote_addr
-    
+
     if not can_test(client_ip, "download"):
         return jsonify({"error": "请等待一分钟后再次测试"}), 429
 
     try:
-        thread_size = int(DL_MAX / 6) 
-        
-        range_header = request.headers.get('Range', '')
+        thread_size = int(DL_MAX / 6)
+
+        range_header = request.headers.get("Range", "")
         if range_header:
-            start, end = map(int, range_header.replace('bytes=', '').split('-'))
+            start, end = map(int, range_header.replace("bytes=", "").split("-"))
             chunk_size = min(end - start + 1, thread_size)
         else:
             start = 0
             chunk_size = thread_size
             end = start + chunk_size - 1
-
-        print(f"下载测试 - 线程大小: {thread_size/1024/1024}MB, 块大小: {chunk_size/1024/1024}MB")
 
         def generate():
             try:
@@ -243,13 +241,13 @@ def dl_test():
                     current_chunk = min(remaining, max(BUF_SZ, CHK_SZ))
                     chunk = os.urandom(current_chunk)
                     total_sent += current_chunk
-                    
+
                     sent = 0
                     while sent < len(chunk):
-                        buffer_chunk = chunk[sent:sent + BUF_SZ]
+                        buffer_chunk = chunk[sent : sent + BUF_SZ]
                         yield buffer_chunk
                         sent += len(buffer_chunk)
-                    
+
                     remaining -= current_chunk
             except Exception as e:
                 print(f"数据生成错误: {e}")
@@ -257,18 +255,15 @@ def dl_test():
 
         response = Response(
             stream_with_context(generate()),
-            content_type='application/octet-stream',
+            content_type="application/octet-stream",
             direct_passthrough=True,
-            headers={'X-Accel-Buffering': 'no'}
         )
 
-        response.headers['Content-Length'] = str(chunk_size)
-        response.headers['Content-Range'] = f'bytes {start}-{end}/{chunk_size}'
-        response.headers['Accept-Ranges'] = 'bytes'
-        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-        response.headers['Pragma'] = 'no-cache'
-        response.headers['Expires'] = '0'
-        
+        response.headers["Content-Length"] = str(chunk_size)
+        response.headers["Content-Range"] = f"bytes {start}-{end}/{chunk_size}"
+        response.headers["Accept-Ranges"] = "bytes"
+        response.headers["Cache-Control"] = "no-cache"
+
         return response
 
     except Exception as e:
@@ -281,39 +276,43 @@ def up_test():
     client_ip = get_real_ip() or request.remote_addr
     if not can_test(client_ip, "upload"):
         return jsonify({"error": "请等待一分钟后再次测试"}), 429
-    
+
     try:
         st = perf_counter()
-        
+
         data = request.get_data()
         rcvd = len(data)
 
-        thread_size = int(UP_MAX / 3) 
-        
+        thread_size = int(UP_MAX / 3)
+
         if rcvd > thread_size:
-            print(f"上传数据块过大: {rcvd/1024/1024:.2f}MB > {thread_size/1024/1024:.2f}MB")
+            print(
+                f"上传数据块过大: {rcvd/1024/1024:.2f}MB > {thread_size/1024/1024:.2f}MB"
+            )
             return jsonify({"error": "数据块过大"}), 413
-            
-        print(f"上传测试 - 接收数据: {rcvd/1024/1024:.2f}MB")
-        
+
         if perf_counter() - st > 10:
-            return jsonify({
-                "status": "timeout",
-                "duration": 10,
-                "received": rcvd,
-                "speed": (rcvd / (1024 * 1024)) / 10
-            })
-        
+            return jsonify(
+                {
+                    "status": "timeout",
+                    "duration": 10,
+                    "received": rcvd,
+                    "speed": (rcvd / (1024 * 1024)) / 10,
+                }
+            )
+
         dur = perf_counter() - st
         sp = (rcvd / (1024 * 1024)) / dur if dur > 0 else 0
-        
-        return jsonify({
-            "status": "ok",
-            "duration": round(dur, 2),
-            "received": rcvd,
-            "speed": round(sp, 2)
-        })
-        
+
+        return jsonify(
+            {
+                "status": "ok",
+                "duration": round(dur, 2),
+                "received": rcvd,
+                "speed": round(sp, 2),
+            }
+        )
+
     except Exception as e:
         print(f"上传测试错误: {e}")
         return jsonify({"error": str(e)}), 500
@@ -365,18 +364,25 @@ def favicon():
 @app.route("/get_test_config")
 def get_test_config():
     try:
-        return jsonify({
-            "chunk_size": CHK_SZ,
-            "buffer_size": BUF_SZ,
-            "download_max": DL_MAX,
-            "upload_max": UP_MAX
-        })
+        return jsonify(
+            {
+                "chunk_size": CHK_SZ,
+                "buffer_size": BUF_SZ,
+                "download_max": DL_MAX,
+                "upload_max": UP_MAX,
+            }
+        )
     except Exception as e:
         print(f"获取配置失败: {e}")
-        return jsonify({  #服务端默认配置
-            "error": str(e),
-            "chunk_size": 2 * 1024 * 1024,  #块2MB
-            "buffer_size": 128 * 1024,        #缓冲128KB
-            "download_max": 300 * 1024 * 1024,  #下载300MB
-            "upload_max": 100 * 1024 * 1024     #上传100MB
-        }), 500
+        return (
+            jsonify(
+                {  # 服务端默认配置
+                    "error": str(e),
+                    "chunk_size": 2 * 1024 * 1024,  # 块2MB
+                    "buffer_size": 128 * 1024,  # 缓冲128KB
+                    "download_max": 300 * 1024 * 1024,  # 下载300MB
+                    "upload_max": 100 * 1024 * 1024,  # 上传100MB
+                }
+            ),
+            500,
+        )
