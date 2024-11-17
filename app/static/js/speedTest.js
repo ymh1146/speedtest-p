@@ -1,41 +1,38 @@
 class SpTest {
     constructor() {
+        this.progressFill = document.querySelector('.pg-fill');
+        this.progressLabel = document.querySelector('#progressLabel');
+        this.testSection = document.querySelector('.t-sec');
+        this.progressContainer = document.querySelector('.pg-con');
+        this.resultContainer = document.querySelector('.r-con');
+        this.resultElement = document.getElementById('results');
+        this.historyList = document.getElementById('historyList');
+        
         this.config = null;
         this.uploadData = null;
         this.getCfg().then(() => {
             this.initEvt();
             this.updHis();
-        }).catch(err => {
-            console.error('初始化失败:', err);
         });
     }
+
     async getCfg() {
         try {
             const res = await fetch('/get_test_config');
             if (!res.ok) throw new Error('获取配置失败');
-            
             this.config = await res.json();
-            console.log('获取到测试配置:', {
-                chunkSize: this.config.chunk_size / (1024 * 1024) + 'MB',
-                bufferSize: this.config.buffer_size / 1024 + 'KB',
-                downloadMax: this.config.download_max / (1024 * 1024) + 'MB',
-                uploadMax: this.config.upload_max / (1024 * 1024) + 'MB'
-            });
-            
             this.chunkSize = this.config.chunk_size;
             this.bufferSize = this.config.buffer_size;
             this.downloadMax = this.config.download_max;
             this.uploadMax = this.config.upload_max;
         } catch (err) {
-            console.error('获取配置失败:', err);
-            // 前端默认配置，防止配置文件丢失或未配置
-            this.chunkSize = 1 * 1024 * 1024;      // 块1MB
-            this.bufferSize = 128 * 1024;          // 缓冲128KB
-            this.downloadMax = 300 * 1024 * 1024;  // 下载300MB
-            this.uploadMax = 100 * 1024 * 1024;    // 上传100MB
-            console.log('使用默认配置');
+            this.chunkSize = 1 * 1024 * 1024;
+            this.bufferSize = 128 * 1024;
+            this.downloadMax = 300 * 1024 * 1024;
+            this.uploadMax = 100 * 1024 * 1024;
         }
     }
+
     initEvt() {
         const btn = document.getElementById('startTest');
         if (btn) {
@@ -50,6 +47,7 @@ class SpTest {
         }
         this.initHisToggle();
     }
+
     initHisToggle() {
         const togBtn = document.getElementById('historyToggle');
         const hisCnt = document.getElementById('historyContent');
@@ -70,72 +68,74 @@ class SpTest {
             });
         }
     }
+
     updateProgress(type, speed, progress, isTransition = false) {
-        const pgFill = document.querySelector('.pg-fill');
-        const pgLab = document.querySelector('#progressLabel');
-        
-        if (!pgFill || !pgLab) return;
+        if (!this.progressFill || !this.progressLabel) return;
 
-        let actualProgress = progress;
-        switch(type) {
-            case 'ping':
-                actualProgress = (progress / 5) * 20;
-                break;
-            case 'download':
-                actualProgress = 20 + (progress * 0.4);
-                break;
-            case 'upload':
-                actualProgress = 60 + (progress * 0.4);
-                break;
-            case 'transition':
-                actualProgress = progress;
-                break;
-            case 'complete':
-                actualProgress = 100;
-                break;
-            case 'error':
-            case 'init':
-                actualProgress = 0;
-                break;
-        }
-
-        actualProgress = Math.max(0, Math.min(100, actualProgress));
-        //增加过度动画以防认为死机了
-        if (isTransition) {
-            pgFill.style.transition = 'width 0.5s ease-in-out';
-        } else {
-            pgFill.style.transition = 'width 0.2s linear';
-        }
-        
-        pgFill.style.width = `${actualProgress}%`;
-
-        if (type === 'download' || type === 'upload') {
-            pgLab.textContent = `正在测试${type === 'download' ? '下载' : '上传'}速度: ${speed.toFixed(2)} Mb/s (${actualProgress.toFixed(1)}%)`;
-        } else if (type === 'ping') {
-            pgLab.textContent = `正在测试延迟: ${speed.toFixed(2)} ms (${actualProgress.toFixed(1)}%)`;
-        } else if (type === 'transition') {
-            if (progress <= 20) {
-                pgLab.textContent = '准备开始下载测试...';
-            } else if (progress <= 60) {
-                pgLab.textContent = '准备开始上传测试...';
+        requestAnimationFrame(() => {
+            let actualProgress = progress;
+            switch(type) {
+                case 'ping':
+                    actualProgress = (progress / 5) * 20;
+                    break;
+                case 'download':
+                    actualProgress = 20 + (progress * 0.4);
+                    break;
+                case 'upload':
+                    actualProgress = 60 + (progress * 0.4);
+                    break;
+                case 'transition':
+                    actualProgress = progress;
+                    break;
+                case 'complete':
+                    actualProgress = 100;
+                    break;
+                case 'error':
+                case 'init':
+                    actualProgress = 0;
+                    break;
             }
-        } else if (type === 'complete') {
-            pgLab.textContent = '测试完成 (100%)';
-        } else if (type === 'error') {
-            pgLab.textContent = '测试失败 (0%)';
-        } else {
-            pgLab.textContent = '准备开始测试... (0%)';
-        }
+
+            actualProgress = Math.max(0, Math.min(100, actualProgress));
+            
+            this.progressFill.style.transition = isTransition ? 
+                'width 0.5s cubic-bezier(0.4, 0, 0.2, 1)' : 
+                'width 0.2s linear';
+            this.progressFill.style.width = `${actualProgress}%`;
+
+            let labelText = '准备开始测试... (0%)';
+            if (type === 'download' || type === 'upload') {
+                labelText = `正在测试${type === 'download' ? '下载' : '上传'}速度: ${speed.toFixed(2)} Mb/s (${actualProgress.toFixed(1)}%)`;
+            } else if (type === 'ping') {
+                labelText = `正在测试延迟: ${speed.toFixed(2)} ms (${actualProgress.toFixed(1)}%)`;
+            } else if (type === 'transition') {
+                labelText = progress <= 20 ? '准备开始下载测试...' : '准备开始上传测试...';
+            } else if (type === 'complete') {
+                labelText = '测试完成 (100%)';
+            } else if (type === 'error') {
+                labelText = '测试失败 (0%)';
+            }
+            
+            if (this.progressLabel.textContent !== labelText) {
+                this.progressLabel.textContent = labelText;
+            }
+        });
     }
+
     async startTest() {
-        const tSec = document.querySelector('.t-sec');
-        const pgCon = document.querySelector('.pg-con');
-        const resCon = document.querySelector('.r-con');
+        if (!this.testSection || !this.progressContainer || !this.resultContainer) return;
         
-        tSec.style.display = 'block';
-        setTimeout(() => tSec.classList.add('show'), 10);
-        pgCon.classList.add('show');
-        if (resCon) resCon.classList.remove('show');
+        this.testSection.style.display = 'block';
+        this.progressContainer.style.display = 'block';
+        this.progressContainer.style.opacity = '1';
+        
+        this.testSection.classList.add('show');
+        this.progressContainer.classList.add('show');
+        
+        if (this.resultContainer) {
+            this.resultContainer.classList.remove('show');
+            this.resultContainer.style.display = 'none';
+        }
         
         this.updateProgress('init', 0, 0);
         
@@ -174,21 +174,21 @@ class SpTest {
             await this.updHis();
             
             this.updateProgress('complete', 100, 100, true);
-            pgCon.style.transition = 'opacity 1.5s cubic-bezier(0.4, 0, 0.2, 1)';
-            pgCon.style.opacity = '0';
+            this.progressContainer.style.transition = 'opacity 1.5s cubic-bezier(0.4, 0, 0.2, 1)';
+            this.progressContainer.style.opacity = '0';
             await new Promise(resolve => setTimeout(resolve, 1500));
-            pgCon.style.display = 'none';
+            this.progressContainer.style.display = 'none';
             this.showRes(res);
             
         } catch (err) {
-            console.error('测试失败:', err);
             this.showErr(err.message || '测试失败，请重试');
             this.updateProgress('error', 0, 0);
         }
     }
+
     async runPingTest() {
         const pings = [];
-        const count = 5; 
+        const count = 5;
         
         try {
             for(let i = 0; i < count; i++) {
@@ -197,7 +197,7 @@ class SpTest {
                 
                     const start = performance.now();
                     const res = await fetch('/ping');
-                    const data = await res.json(); 
+                    const data = await res.json();
                     const end = performance.now();
                     
                     if (!res.ok || data.status !== 'ok') {
@@ -205,13 +205,11 @@ class SpTest {
                     }
                     
                     const pingTime = Math.max(1, end - start);
-                    console.log(`Ping测试 ${i+1}: ${pingTime.toFixed(2)}ms`);
                     pings.push(pingTime);
                     
                     this.updateProgress('ping', pingTime, ((i + 1) / count) * 100);
                     
                 } catch (err) {
-                    console.error(`Ping测试第${i+1}次失败:`, err);
                     const avgPing = pings.length > 0 ? 
                         pings.reduce((a, b) => a + b, 0) / pings.length : 
                         100;
@@ -247,49 +245,51 @@ class SpTest {
                 jitters.reduce((a, b) => a + b, 0) / jitters.length : 
                 0;
                 
-            console.log('Ping测试结果:', {
-                pings: validPings.map(p => p.toFixed(2) + 'ms'),
-                avgPing: avgPing.toFixed(2) + 'ms',
-                jitter: avgJitter.toFixed(2) + 'ms'
-            });
-            
             return {
                 ping_avg: Math.round(avgPing),
                 jitter: Math.round(avgJitter)
             };
         } catch (err) {
-            console.error('Ping测试失败:', err);
             return { error: err.message || 'Ping测试失败' };
         }
     }
+
     async runDlTest() {
         const streams = 6;
-        const sps = [];
-        let totalReceived = 0;
+        const streamReceivedData = Array(streams).fill(0);
+        const speedSamples = [];
         let failedStreams = 0;
         const startTime = performance.now();
-        let lastUpdate = startTime;
         const abortController = new AbortController();
 
         try {
             setTimeout(() => abortController.abort(), 10000);
             const activeStreams = [];
             const threadSize = Math.floor(this.downloadMax / streams);
-            console.log(`下载测试 - 总大小: ${this.downloadMax/1024/1024}MB, 线程数: ${streams}, 每线程: ${threadSize/1024/1024}MB`);
             
+            const speedTimer = setInterval(() => {
+                const now = performance.now();
+                const totalReceived = streamReceivedData.reduce((a, b) => a + b, 0);
+                const duration = (now - startTime) / 1000;
+                const currentSpeed = ((totalReceived / (1024 * 1024)) / duration) * 8;
+                
+                if (currentSpeed > 0) {
+                    speedSamples.push(currentSpeed);
+                    this.updateProgress('download', currentSpeed, (duration / 10) * 100);
+                }
+            }, 1000);
+
             for(let i = 0; i < streams; i++) {
                 const streamPromise = (async () => {
                     try {
                         const start = i * threadSize;
                         const end = (i + 1) * threadSize - 1;
-                        console.log(`下载线程 ${i+1} - 范围: ${start/1024/1024}MB - ${end/1024/1024}MB`);
                         
                         const res = await fetch('/download_test', {
                             signal: abortController.signal,
                             headers: {
                                 'Range': `bytes=${start}-${end}`,
-                                'Cache-Control': 'no-cache',
-                                'Pragma': 'no-cache'
+                                'Cache-Control': 'no-cache'
                             }
                         });
 
@@ -299,25 +299,10 @@ class SpTest {
                         while(true) {
                             const {done, value} = await reader.read();
                             if(done) break;
-                            
-                            totalReceived += value.length;
-                            
-                            const now = performance.now();
-                            if (now - lastUpdate >= 200) {
-                                const duration = (now - startTime) / 1000;
-                                const speedMBps = (totalReceived / (1024 * 1024)) / duration;
-                                const speedMbps = speedMBps * 8;
-                                sps.push(speedMbps);
-                                this.updateProgress('download', speedMbps, (duration / 10) * 100);
-                                lastUpdate = now;
-                                console.log(`下载速度: ${speedMbps.toFixed(2)} Mb/s, 已接收: ${totalReceived} bytes`);
-                            }
+                            streamReceivedData[i] += value.length;
                         }
                     } catch (err) {
-                        if (err.name === 'AbortError') {
-                            console.log('下载测试已终止');
-                        } else {
-                            console.error(`下载流 ${i+1} 错误:`, err);
+                        if (err.name !== 'AbortError') {
                             failedStreams++;
                         }
                     }
@@ -326,67 +311,69 @@ class SpTest {
             }
             
             await Promise.all(activeStreams);
-            
+            clearInterval(speedTimer);
+
             if (failedStreams === streams) throw new Error('所有下载流都失败了');
             
-            if (totalReceived > 0) {
-                const duration = (performance.now() - startTime) / 1000;
-                const avgSpeedMBps = (totalReceived / (1024 * 1024)) / duration;
+            if (speedSamples.length > 0) {
+                const peakSpeed = Math.max(...speedSamples);
+                speedSamples.sort((a, b) => a - b);
+                const cutoff = Math.ceil(speedSamples.length * 0.05);
+                const validSamples = speedSamples.slice(cutoff);
+                const avgSpeed = validSamples.reduce((a, b) => a + b, 0) / validSamples.length;
+
                 return {
-                    download_avg: avgSpeedMBps,
-                    download_peak: Math.max(...sps.map(s => s/8))
+                    download_avg: avgSpeed,
+                    download_peak: peakSpeed
                 };
             }
             
             throw new Error('下载测试失败');
         } catch (err) {
-            console.error('下载测试错误:', err);
             return { error: '下载测试失败' };
         }
     }
+
     async runUpTest() {
         const streams = 3;
-        const sps = [];
-        let totalUploaded = 0;
+        const streamUploadedData = Array(streams).fill(0);
+        const speedSamples = [];
         let failedStreams = 0;
         const startTime = performance.now();
-        let lastUpdate = startTime;
         const abortController = new AbortController();
 
         try {
             setTimeout(() => abortController.abort(), 10000);
             const activeStreams = [];
             const threadSize = Math.floor(this.uploadMax / streams);
-            console.log(`上传测试 - 总大小: ${this.uploadMax/1024/1024}MB, 线程数: ${streams}, 每线程: ${threadSize/1024/1024}MB`);
             
             if (!this.uploadData) {
-                console.warn('上传数据未准备好，重新准备');
                 await this.prepareUploadData();
             }
             
-            console.log(`上传测试配置检查:
-                总大小: ${this.uploadMax/1024/1024}MB
-                线程数: ${streams}
-                每线程: ${threadSize/1024/1024}MB
-                块大小: ${this.chunkSize/1024/1024}MB
-                缓冲区: ${this.bufferSize/1024}KB
-            `);
-            
             const chunkSize = Math.min(this.chunkSize, threadSize);
-            console.log(`上传块大小: ${chunkSize/1024/1024}MB, 缓冲区大小: ${this.bufferSize/1024}KB`);
-
             const baseChunk = new Uint8Array(chunkSize);
             for(let i = 0; i < baseChunk.length; i++) {
                 baseChunk[i] = i % 256;
             }
-            
+
+            const speedTimer = setInterval(() => {
+                const now = performance.now();
+                const totalUploaded = streamUploadedData.reduce((a, b) => a + b, 0);
+                const duration = (now - startTime) / 1000;
+                const currentSpeed = ((totalUploaded / (1024 * 1024)) / duration) * 8;
+                
+                if (currentSpeed > 0) {
+                    speedSamples.push(currentSpeed);
+                    this.updateProgress('upload', currentSpeed, (duration / 10) * 100);
+                }
+            }, 1000);
+
             for(let i = 0; i < streams; i++) {
                 const streamPromise = (async () => {
-                    let streamUploaded = 0;
-                    
                     try {
-                        while(streamUploaded < threadSize) {
-                            const remainingSize = threadSize - streamUploaded;
+                        while(streamUploadedData[i] < threadSize) {
+                            const remainingSize = threadSize - streamUploadedData[i];
                             const currentChunkSize = Math.min(chunkSize, remainingSize);
                             
                             const chunk = this.uploadData ? this.uploadData.slice(0, currentChunkSize) : 
@@ -396,51 +383,25 @@ class SpTest {
                                 method: 'POST',
                                 headers: {
                                     'Content-Type': 'application/octet-stream',
-                                    'Content-Length': currentChunkSize.toString(),
-                                    'X-Upload-Size': threadSize.toString(), 
-                                    'X-Chunk-Size': currentChunkSize.toString()
+                                    'Content-Length': currentChunkSize.toString()
                                 },
                                 body: chunk,
                                 signal: abortController.signal
                             });
 
-                            if (!res.ok) {
-                                console.error('上传失败:', await res.text());
-                                throw new Error('上传失败');
-                            }
+                            if (!res.ok) throw new Error('上传失败');
                             
                             const data = await res.json();
-                            if (data.status !== 'ok') {
-                                console.error('上传响应无效:', data);
-                                throw new Error('上传响应无效');
-                            }
+                            if (data.status !== 'ok') throw new Error('上传响应无效');
                             
-                            streamUploaded += currentChunkSize;
-                            totalUploaded += currentChunkSize;
+                            streamUploadedData[i] += currentChunkSize;
                             
-                            const now = performance.now();
-                            if (now - lastUpdate >= 200) {
-                                const duration = (now - startTime) / 1000;
-                                const speedMBps = (totalUploaded / (1024 * 1024)) / duration;
-                                const speedMbps = speedMBps * 8;
-                                sps.push(speedMbps);
-                                this.updateProgress('upload', speedMbps, (duration / 10) * 100);
-                                lastUpdate = now;
-                                console.log(`上传速度: ${speedMbps.toFixed(2)} Mb/s, 已上传: ${(totalUploaded / (1024 * 1024)).toFixed(2)}MB, 流 ${i+1}`);
-                            }
+                            if (performance.now() - startTime >= 10000) break;
                             
-                            if (performance.now() - startTime >= 10000) {
-                                console.log(`上传测试达到10秒时限，流 ${i+1} 已上传: ${(streamUploaded / (1024 * 1024)).toFixed(2)}MB`);
-                                break;
-                            }
-                            
-                            await new Promise(resolve => setTimeout(resolve, Math.floor(this.bufferSize / (1024 * 10)))); // 大约每MB数据暂停1ms
+                            await new Promise(resolve => setTimeout(resolve, Math.floor(this.bufferSize / (1024 * 10))));
                         }
                     } catch (err) {
-                        if (err.name === 'AbortError') {
-                            console.log(`上传流 ${i+1} 已终止，已上传: ${(streamUploaded / (1024 * 1024)).toFixed(2)}MB`);
-                        } else {
-                            console.error(`上传流 ${i+1} 错误:`, err);
+                        if (err.name !== 'AbortError') {
                             failedStreams++;
                         }
                     }
@@ -451,25 +412,29 @@ class SpTest {
             }
             
             await Promise.all(activeStreams);
-            
+            clearInterval(speedTimer);
+
             if (failedStreams === streams) throw new Error('所有上传流都失败了');
             
-            if (totalUploaded > 0) {
-                const duration = (performance.now() - startTime) / 1000;
-                const avgSpeedMBps = (totalUploaded / (1024 * 1024)) / duration;
-                console.log(`上传测试完成 - 总上传: ${(totalUploaded / (1024 * 1024)).toFixed(2)}MB, 平均速度: ${(avgSpeedMBps * 8).toFixed(2)}Mb/s`);
+            if (speedSamples.length > 0) {
+                const peakSpeed = Math.max(...speedSamples);
+                speedSamples.sort((a, b) => a - b);
+                const cutoff = Math.ceil(speedSamples.length * 0.05);
+                const validSamples = speedSamples.slice(cutoff);
+                const avgSpeed = validSamples.reduce((a, b) => a + b, 0) / validSamples.length;
+
                 return {
-                    upload_avg: avgSpeedMBps,
-                    upload_peak: Math.max(...sps.map(s => s/8))
+                    upload_avg: avgSpeed,
+                    upload_peak: peakSpeed
                 };
             }
             
             throw new Error('上传测试失败');
         } catch (err) {
-            console.error('上传测试错误:', err);
             return { error: '上传测试失败' };
         }
     }
+
     async saveRes(res) {
         try {
             await fetch('/save_test_results', {
@@ -479,66 +444,67 @@ class SpTest {
                 },
                 body: JSON.stringify(res)
             });
-        } catch (error) {
-            console.error('保存结果失败:', error);
-        }
+        } catch (error) {}
     }
+
     showRes(res) {
-        const resEl = document.getElementById('results');
-        if (resEl) {
-            resEl.innerHTML = `
-                <div class="r-con">
-                    <div class="r-row">
-                        <div class="r-crd">
-                            <span class="l">延迟</span>
-                            <span class="v">${res.ping_avg} ms</span>
-                        </div>
-                        <div class="r-crd">
-                            <span class="l">抖动</span>
-                            <span class="v">${res.jitter} ms</span>
-                        </div>
-                        <div class="r-crd">
-                            <div class="sp-grp">
-                                <div class="sp-l">下载速度</div>
-                                <div class="sp-i">
-                                    <div class="sp-r">
-                                        <span class="sl">平均</span>
-                                        <span class="v">${(res.download_avg * 8).toFixed(2)} Mb/s</span>
-                                    </div>
-                                    <div class="sp-r">
-                                        <span class="sl">峰值</span>
-                                        <span class="v">${(res.download_peak * 8).toFixed(2)} Mb/s</span>
-                                    </div>
+        if (!this.resultElement) return;
+        
+        const html = `
+            <div class="r-con">
+                <div class="r-row">
+                    <div class="r-crd">
+                        <span class="l">延迟</span>
+                        <span class="v">${res.ping_avg} ms</span>
+                    </div>
+                    <div class="r-crd">
+                        <span class="l">抖动</span>
+                        <span class="v">${res.jitter} ms</span>
+                    </div>
+                    <div class="r-crd">
+                        <div class="sp-grp">
+                            <div class="sp-l">下载速度</div>
+                            <div class="sp-i">
+                                <div class="sp-r">
+                                    <span class="sl">平均</span>
+                                    <span class="v">${res.download_avg.toFixed(2)} Mb/s</span>
+                                </div>
+                                <div class="sp-r">
+                                    <span class="sl">峰值</span>
+                                    <span class="v">${res.download_peak.toFixed(2)} Mb/s</span>
                                 </div>
                             </div>
                         </div>
-                        <div class="r-crd">
-                            <div class="sp-grp">
-                                <div class="sp-l">上传速度</div>
-                                <div class="sp-i">
-                                    <div class="sp-r">
-                                        <span class="sl">平均</span>
-                                        <span class="v">${(res.upload_avg * 8).toFixed(2)} Mb/s</span>
-                                    </div>
-                                    <div class="sp-r">
-                                        <span class="sl">峰值</span>
-                                        <span class="v">${(res.upload_peak * 8).toFixed(2)} Mb/s</span>
-                                    </div>
+                    </div>
+                    <div class="r-crd">
+                        <div class="sp-grp">
+                            <div class="sp-l">上传速度</div>
+                            <div class="sp-i">
+                                <div class="sp-r">
+                                    <span class="sl">平均</span>
+                                    <span class="v">${res.upload_avg.toFixed(2)} Mb/s</span>
+                                </div>
+                                <div class="sp-r">
+                                    <span class="sl">峰值</span>
+                                    <span class="v">${res.upload_peak.toFixed(2)} Mb/s</span>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            `;
-            
-            setTimeout(() => {
-                const newResCon = resEl.querySelector('.r-con');
-                if (newResCon) {
-                    newResCon.classList.add('show');
-                }
-            }, 10);
-        }
+            </div>
+        `;
+        
+        this.resultElement.innerHTML = html;
+        
+        requestAnimationFrame(() => {
+            const newResCon = this.resultElement.querySelector('.r-con');
+            if (newResCon) {
+                newResCon.classList.add('show');
+            }
+        });
     }
+
     showErr(msg) {
         const resEl = document.getElementById('results');
         if (resEl) {
@@ -555,6 +521,7 @@ class SpTest {
             }, 10);
         }
     }
+
     async updHis() {
         try {
             const res = await fetch('/get_records');
@@ -594,7 +561,6 @@ class SpTest {
                 }
             }
         } catch (err) {
-            console.error('更新历史记录失败:', err);
             const hisList = document.getElementById('historyList');
             if (hisList) {
                 hisList.innerHTML = `
@@ -605,30 +571,24 @@ class SpTest {
             }
         }
     }
+
     async prepareUploadData() {
         try {
             const chunkSize = Math.min(this.chunkSize, Math.floor(this.uploadMax / 3));
-            console.log(`预生成上传数据块: ${chunkSize/1024/1024}MB (配置: chunkSize=${this.chunkSize/1024/1024}MB, uploadMax=${this.uploadMax/1024/1024}MB)`);
-            
             this.uploadData = new Uint8Array(chunkSize);
             for(let i = 0; i < this.uploadData.length; i++) {
                 this.uploadData[i] = i % 256;
             }
-            
-            console.log('上传数据准备完成');
         } catch (err) {
-            console.error('预生成上传数据失败:', err);
             this.uploadData = null;
         }
     }
 }
+
 if (!window.spTest) {
     document.addEventListener('DOMContentLoaded', () => {
-        console.log('页面加载完成，初始化 SpTest...');
         try {
             window.spTest = new SpTest();
-        } catch (err) {
-            console.error('SpTest 初始化失败:', err);
-        }
+        } catch (err) {}
     });
 } 
