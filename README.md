@@ -44,7 +44,7 @@ http://localhost:5000
 ### v1.0.2 (2024-11-17)
 
 - 移除WebSocket依赖
-- 使用HTTP/2进行测试
+- ~~- 使用HTTP/2进行测试~~  要报错还是用1.1
 - 优化移动设备兼容性
 - 修复上传卡死问题
 - 优化配置系统
@@ -52,4 +52,3 @@ http://localhost:5000
 ## 许可证
 
 MIT License @ [heilo.cn](https://heilo.cn)
-
