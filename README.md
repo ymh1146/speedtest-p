@@ -16,7 +16,7 @@
 git clone https://github.com/ymh1146/speedtest-p.git
 cd speedtest-p
 pip install -r requirements.txt
-python app.py
+python run.py
 ```
 
 2. 访问
