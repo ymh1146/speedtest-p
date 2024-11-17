@@ -13,6 +13,7 @@ class SpTest {
         this.getCfg().then(() => {
             this.initEvt();
             this.updHis();
+            this.prepareUploadData();
         });
     }
 
@@ -150,23 +151,13 @@ class SpTest {
             this.updateProgress('transition', 0, 20, true);
             await new Promise(resolve => setTimeout(resolve, 500));
             
-            const dlRes = await Promise.race([
-                this.runDlTest(),
-                new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error('下载测试超时')), 10000)
-                )
-            ]);
+            const dlRes = await this.runDlTest();
             if (dlRes.error) throw new Error(dlRes.error);
 
             this.updateProgress('transition', 0, 60, true);
             await new Promise(resolve => setTimeout(resolve, 500));
             
-            const upRes = await Promise.race([
-                this.runUpTest(),
-                new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error('上传测试超时')), 10000)
-                )
-            ]);
+            const upRes = await this.runUpTest();
             if (upRes.error) throw new Error(upRes.error);
             
             const res = {...pingRes, ...dlRes, ...upRes};
@@ -263,22 +254,9 @@ class SpTest {
         const abortController = new AbortController();
 
         try {
-            setTimeout(() => abortController.abort(), 10000);
             const activeStreams = [];
             const threadSize = Math.floor(this.downloadMax / streams);
             
-            const speedTimer = setInterval(() => {
-                const now = performance.now();
-                const totalReceived = streamReceivedData.reduce((a, b) => a + b, 0);
-                const duration = (now - startTime) / 1000;
-                const currentSpeed = ((totalReceived / (1024 * 1024)) / duration) * 8;
-                
-                if (currentSpeed > 0) {
-                    speedSamples.push(currentSpeed);
-                    this.updateProgress('download', currentSpeed, (duration / 10) * 100);
-                }
-            }, 1000);
-
             for(let i = 0; i < streams; i++) {
                 const streamPromise = (async () => {
                     try {
@@ -310,6 +288,20 @@ class SpTest {
                 activeStreams.push(streamPromise);
             }
             
+            setTimeout(() => abortController.abort(), 10000);
+            
+            const speedTimer = setInterval(() => {
+                const now = performance.now();
+                const totalReceived = streamReceivedData.reduce((a, b) => a + b, 0);
+                const duration = (now - startTime) / 1000;
+                const currentSpeed = ((totalReceived / (1024 * 1024)) / duration) * 8;
+                
+                if (currentSpeed > 0) {
+                    speedSamples.push(currentSpeed);
+                    this.updateProgress('download', currentSpeed, (duration / 10) * 100);
+                }
+            }, 1000);
+
             await Promise.all(activeStreams);
             clearInterval(speedTimer);
 
@@ -343,7 +335,6 @@ class SpTest {
         const abortController = new AbortController();
 
         try {
-            setTimeout(() => abortController.abort(), 10000);
             const activeStreams = [];
             const threadSize = Math.floor(this.uploadMax / streams);
             
@@ -351,33 +342,14 @@ class SpTest {
                 await this.prepareUploadData();
             }
             
-            const chunkSize = Math.min(this.chunkSize, threadSize);
-            const baseChunk = new Uint8Array(chunkSize);
-            for(let i = 0; i < baseChunk.length; i++) {
-                baseChunk[i] = i % 256;
-            }
-
-            const speedTimer = setInterval(() => {
-                const now = performance.now();
-                const totalUploaded = streamUploadedData.reduce((a, b) => a + b, 0);
-                const duration = (now - startTime) / 1000;
-                const currentSpeed = ((totalUploaded / (1024 * 1024)) / duration) * 8;
-                
-                if (currentSpeed > 0) {
-                    speedSamples.push(currentSpeed);
-                    this.updateProgress('upload', currentSpeed, (duration / 10) * 100);
-                }
-            }, 1000);
-
             for(let i = 0; i < streams; i++) {
                 const streamPromise = (async () => {
                     try {
                         while(streamUploadedData[i] < threadSize) {
                             const remainingSize = threadSize - streamUploadedData[i];
-                            const currentChunkSize = Math.min(chunkSize, remainingSize);
+                            const currentChunkSize = Math.min(this.chunkSize, remainingSize);
                             
-                            const chunk = this.uploadData ? this.uploadData.slice(0, currentChunkSize) : 
-                                                         baseChunk.slice(0, currentChunkSize);
+                            const chunk = this.uploadData.slice(0, currentChunkSize);
                             
                             const res = await fetch('/upload_test', {
                                 method: 'POST',
@@ -398,7 +370,7 @@ class SpTest {
                             
                             if (performance.now() - startTime >= 10000) break;
                             
-                            await new Promise(resolve => setTimeout(resolve, Math.floor(this.bufferSize / (1024 * 10))));
+                            await new Promise(resolve => setTimeout(resolve, 10));
                         }
                     } catch (err) {
                         if (err.name !== 'AbortError') {
@@ -407,10 +379,24 @@ class SpTest {
                     }
                 })();
 
-                await new Promise(resolve => setTimeout(resolve, Math.floor(this.bufferSize / 1024)));
+                await new Promise(resolve => setTimeout(resolve, 50));
                 activeStreams.push(streamPromise);
             }
             
+            setTimeout(() => abortController.abort(), 10000);
+            
+            const speedTimer = setInterval(() => {
+                const now = performance.now();
+                const totalUploaded = streamUploadedData.reduce((a, b) => a + b, 0);
+                const duration = (now - startTime) / 1000;
+                const currentSpeed = ((totalUploaded / (1024 * 1024)) / duration) * 8;
+                
+                if (currentSpeed > 0) {
+                    speedSamples.push(currentSpeed);
+                    this.updateProgress('upload', currentSpeed, (duration / 10) * 100);
+                }
+            }, 1000);
+
             await Promise.all(activeStreams);
             clearInterval(speedTimer);
 
@@ -574,10 +560,16 @@ class SpTest {
 
     async prepareUploadData() {
         try {
-            const chunkSize = Math.min(this.chunkSize, Math.floor(this.uploadMax / 3));
-            this.uploadData = new Uint8Array(chunkSize);
-            for(let i = 0; i < this.uploadData.length; i++) {
-                this.uploadData[i] = i % 256;
+            const baseChunkSize = this.chunkSize;
+            this.uploadData = new Uint8Array(baseChunkSize);
+            
+            const pattern = new Uint8Array(256);
+            for(let i = 0; i < 256; i++) {
+                pattern[i] = i;
+            }
+            
+            for(let i = 0; i < this.uploadData.length; i += 256) {
+                this.uploadData.set(pattern.slice(0, Math.min(256, this.uploadData.length - i)), i);
             }
         } catch (err) {
             this.uploadData = null;
