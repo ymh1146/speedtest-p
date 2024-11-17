@@ -12,33 +12,37 @@
 
 1. 克隆仓库
 
-``` bash
+```bash
 git clone https://github.com/ymh1146/speedtest-p.git
 cd speedtest-p
 pip install -r requirements.txt
 python app.py
 ```
+
 2. 访问
+
 ```
 http://localhost:5000
 ```
+
 ## 配置说明
 
 配置文件位于 `app/config.py`：
 
-CHK_SZ = 2097152 # 分块大小 (2MB) 不建议超过2MB，超过2MB手机端上传有几率失败
-BUF_SZ = 131072 # 缓冲区大小 (128KB)
-DL_MAX = int(0.3 1024 1024 1024) # 下载测试最大大小 (0.3GB)
-UP_MAX = int(0.1 1024 1024 1024) # 上传测试最大大小 (0.1GB)
+CHK_SZ = 2097152 *// *分块大小 (2MB) 不建议超过2MB，超过2MB手机端上传有几率失败*
+BUF_SZ = 131072 *// 缓冲区大小 (128KB)*
+DL_MAX = int(0.3 1024 1024 1024)  *// 下载测试最大大小 (0.3GB)*
+UP_MAX = int(0.1 1024 1024 1024) *// 上传测试最大大小 (0.1GB)**
 
 历史记录配置
 
-MAX_REC = 20 # 最大记录数
-REC_F = 'speed_records.json' # 记录文件名
+MAX_REC = 20 *// 最大记录数*
+REC_F = 'speed_records.json' *// 记录文件名*
 
 ## 更新日志
 
 ### v1.0.2 (2024-11-17)
+
 - 移除WebSocket依赖
 - 使用HTTP/2进行测试
 - 优化移动设备兼容性
