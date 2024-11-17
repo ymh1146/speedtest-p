@@ -1,18 +1,16 @@
 from flask import render_template, jsonify, request, Response, stream_with_context
 from datetime import datetime, timedelta
 import os
-import time
 import json
-from app import app, sock
-from app.services.speed_test import SpTest
+from app import app
 from app.services.system_info import get_sys, get_ip, get_location
 from app.utils.file_handlers import sav_rec, ld_recs
-from app.config import CHK_SZ, BUF_SZ, WS_INT, DL_MAX, UP_MAX
+from app.config import CHK_SZ, BUF_SZ, DL_MAX, UP_MAX
 import requests
 from collections import defaultdict
 from time import perf_counter
+import time
 
-sp_test = SpTest()
 ip_test_records = defaultdict(list)
 
 
@@ -159,6 +157,15 @@ def index():
     return render_template("index.html")
 
 
+@app.route("/ping")
+def ping():
+    try:
+        return jsonify({"status": "ok", "timestamp": time.time()})
+    except Exception as e:
+        print(f"Ping error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/get_info")
 def get_info():
     cli_ip = get_real_ip() or request.remote_addr
@@ -210,44 +217,58 @@ def get_recs():
 @app.route("/download_test")
 def dl_test():
     client_ip = get_real_ip() or request.remote_addr
-    print(f"开始下载测试 - IP: {client_ip}")
-
+    
     if not can_test(client_ip, "download"):
         return jsonify({"error": "请等待一分钟后再次测试"}), 429
 
     try:
+        thread_size = int(DL_MAX / 6) 
+        
+        range_header = request.headers.get('Range', '')
+        if range_header:
+            start, end = map(int, range_header.replace('bytes=', '').split('-'))
+            chunk_size = min(end - start + 1, thread_size)
+        else:
+            start = 0
+            chunk_size = thread_size
+            end = start + chunk_size - 1
+
+        print(f"下载测试 - 线程大小: {thread_size/1024/1024}MB, 块大小: {chunk_size/1024/1024}MB")
 
         def generate():
             try:
-                sent = 0
-                chunk = os.urandom(min(CHK_SZ, 1024 * 1024))
-
-                max_size = int(DL_MAX / 6)
-                print(f"生成测试数据 - 块大小: {len(chunk)}, 线程分配大小: {max_size}")
-
-                while sent < max_size:
-                    yield chunk
-                    sent += len(chunk)
-                    if sent % (10 * 1024 * 1024) == 0:
-                        print(
-                            f"下载进度: {sent}/{max_size} bytes ({(sent/max_size*100):.1f}%)"
-                        )
-
+                remaining = chunk_size
+                total_sent = 0
+                while remaining > 0:
+                    current_chunk = min(remaining, max(BUF_SZ, CHK_SZ))
+                    chunk = os.urandom(current_chunk)
+                    total_sent += current_chunk
+                    
+                    sent = 0
+                    while sent < len(chunk):
+                        buffer_chunk = chunk[sent:sent + BUF_SZ]
+                        yield buffer_chunk
+                        sent += len(buffer_chunk)
+                    
+                    remaining -= current_chunk
             except Exception as e:
                 print(f"数据生成错误: {e}")
                 raise
 
         response = Response(
             stream_with_context(generate()),
-            content_type="application/octet-stream",
+            content_type='application/octet-stream',
             direct_passthrough=True,
+            headers={'X-Accel-Buffering': 'no'}
         )
 
-        response.headers["Content-Length"] = str(int(DL_MAX / 6))
-        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-        response.headers["Pragma"] = "no-cache"
-        response.headers["Expires"] = "0"
-        print(f"下载测试响应已创建 - Content-Length: {int(DL_MAX / 6)}")
+        response.headers['Content-Length'] = str(chunk_size)
+        response.headers['Content-Range'] = f'bytes {start}-{end}/{chunk_size}'
+        response.headers['Accept-Ranges'] = 'bytes'
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        
         return response
 
     except Exception as e:
@@ -260,36 +281,39 @@ def up_test():
     client_ip = get_real_ip() or request.remote_addr
     if not can_test(client_ip, "upload"):
         return jsonify({"error": "请等待一分钟后再次测试"}), 429
+    
     try:
         st = perf_counter()
-        chunk_size = min(CHK_SZ, 1024 * 1024)
+        
+        data = request.get_data()
+        rcvd = len(data)
 
-        max_size = int(UP_MAX / 3)
-        rcvd = 0
-
-        while rcvd < max_size:
-            try:
-                chunk = request.stream.read(chunk_size)
-                if not chunk:
-                    break
-                rcvd += len(chunk)
-
-                if rcvd % (10 * 1024 * 1024) == 0:
-                    print(
-                        f"上传进度: {rcvd}/{max_size} bytes ({(rcvd/max_size*100):.1f}%)"
-                    )
-
-                if perf_counter() - st > 10:
-                    break
-
-            except Exception as e:
-                print(f"Upload chunk error: {e}")
-                break
-
+        thread_size = int(UP_MAX / 3) 
+        
+        if rcvd > thread_size:
+            print(f"上传数据块过大: {rcvd/1024/1024:.2f}MB > {thread_size/1024/1024:.2f}MB")
+            return jsonify({"error": "数据块过大"}), 413
+            
+        print(f"上传测试 - 接收数据: {rcvd/1024/1024:.2f}MB")
+        
+        if perf_counter() - st > 10:
+            return jsonify({
+                "status": "timeout",
+                "duration": 10,
+                "received": rcvd,
+                "speed": (rcvd / (1024 * 1024)) / 10
+            })
+        
         dur = perf_counter() - st
         sp = (rcvd / (1024 * 1024)) / dur if dur > 0 else 0
-
-        return jsonify({"dur": round(dur, 2), "rcvd": rcvd, "sp": round(sp, 2)})
+        
+        return jsonify({
+            "status": "ok",
+            "duration": round(dur, 2),
+            "received": rcvd,
+            "speed": round(sp, 2)
+        })
+        
     except Exception as e:
         print(f"上传测试错误: {e}")
         return jsonify({"error": str(e)}), 500
@@ -333,76 +357,26 @@ def save_res():
         return jsonify({"error": str(e)}), 500
 
 
-@sock.route("/ws")
-def ws(ws):
-    sp_test = SpTest()
-    try:
-        sp_test.ws_cons.add(ws)
-        while True:
-            try:
-                msg = ws.receive(timeout=30)
-                if msg is None:
-                    ws.send(json.dumps({"type": "ping"}))
-                    continue
-                elif not msg:
-                    break
-            except Exception as e:
-                print(f"WebSocket receive error: {e}")
-                break
-    except Exception as e:
-        print(f"WebSocket error: {e}")
-    finally:
-        sp_test.ws_cons.discard(ws)
-
-
-@app.after_request
-def add_hdrs(response):
-    response.headers["Content-Security-Policy"] = (
-        "default-src 'self'; "
-        "connect-src 'self' ws: wss: http://ip-api.com https://ipapi.co "
-        "https://whois.pconline.com.cn https://ip.useragentinfo.com; "
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
-        "style-src 'self' 'unsafe-inline'; "
-        "img-src 'self' data:; "
-        "font-src 'self' data:;"
-    )
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "SAMEORIGIN"
-    return response
-
-
-@app.errorhandler(Exception)
-def handle_err(error):
-    print(f"Error: {error}")
-    return jsonify({"error": "Internal server error"}), 500
-
-
-@app.route("/ping")
-def ping():
-    try:
-        return jsonify({"status": "ok"})
-    except Exception as e:
-        print(f"Ping error: {e}")
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route("/get_test_config")
-def get_cfg():
-    try:
-        return jsonify(
-            {
-                "chunk_size": CHK_SZ,
-                "buffer_size": BUF_SZ,
-                "update_interval": WS_INT,
-                "download_max": DL_MAX,
-                "upload_max": UP_MAX,
-            }
-        )
-    except Exception as e:
-        print(f"获取配置失败: {e}")
-        return jsonify({"error": str(e)}), 500
-
-
 @app.route("/favicon.ico")
 def favicon():
     return "", 204
+
+
+@app.route("/get_test_config")
+def get_test_config():
+    try:
+        return jsonify({
+            "chunk_size": CHK_SZ,
+            "buffer_size": BUF_SZ,
+            "download_max": DL_MAX,
+            "upload_max": UP_MAX
+        })
+    except Exception as e:
+        print(f"获取配置失败: {e}")
+        return jsonify({  #服务端默认配置
+            "error": str(e),
+            "chunk_size": 2 * 1024 * 1024,  #块2MB
+            "buffer_size": 128 * 1024,        #缓冲128KB
+            "download_max": 300 * 1024 * 1024,  #下载300MB
+            "upload_max": 100 * 1024 * 1024     #上传100MB
+        }), 500

@@ -11,10 +11,8 @@ def sav_rec(rec):
                     recs = json.load(f)
             except:
                 pass
-        
-        # 添加新记录到开头
+
         recs.insert(0, rec)
-        # 保持最大记录数
         recs = recs[:MAX_REC]
         
         with open(REC_F, 'w', encoding='utf-8') as f:

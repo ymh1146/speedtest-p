@@ -20,7 +20,6 @@ class SpChart {
         const ctx = document.getElementById('hisChart');
         if (!ctx) return;
 
-        // 准备数据
         const labels = recs.map(rec => {
             const ts = rec.timestamp.split(' ');
             return `${ts[0].split('-').slice(1).join('-')} ${ts[1]}`;
