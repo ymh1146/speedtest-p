@@ -10,6 +10,8 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 warnings.filterwarnings("ignore", message="Unverified HTTPS request")
 ip_cache = {"cli": {"data": None, "exp": None}, "srv": {"data": None, "exp": None}}
 
+_system_info_cache = {"data": None, "expires": None}
+
 
 def is_v4(ip):
     return ip and "." in ip and ":" not in ip
@@ -131,6 +133,16 @@ def get_ip(is_cli=False):
 
 
 def get_sys():
+    global _system_info_cache
+    now = datetime.now()
+
+    if (
+        _system_info_cache["data"] is not None
+        and _system_info_cache["expires"] is not None
+        and now < _system_info_cache["expires"]
+    ):
+        return _system_info_cache["data"]
+
     try:
         if platform.system() == "Linux":
             try:
@@ -157,7 +169,7 @@ def get_sys():
         except:
             server_ip = "127.0.0.1"
 
-        return {
+        info = {
             "ip": server_ip,
             "os": f"{platform.system()} {platform.release()}",
             "cpu": cpu,
@@ -166,6 +178,11 @@ def get_sys():
             "dsk_total": f"{dsk.total / (1024**3):.1f} GB",
             "dsk_used": f"{dsk.used / (1024**3):.1f} GB",
         }
+
+        _system_info_cache["data"] = info
+        _system_info_cache["expires"] = now + timedelta(hours=24)
+
+        return info
     except Exception as e:
         print(f"获取系统信息失败: {e}")
         return {
