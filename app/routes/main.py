@@ -323,11 +323,11 @@ def save_res():
     try:
         data = request.get_json()
         cli_ip = get_real_ip() or request.remote_addr
-        loc_info = (
-            get_location(cli_ip)
-            if cli_ip != "未知"
-            else {"country": "未知", "region": "未知", "city": "未知"}
-        )
+        loc_info = get_location(cli_ip) if cli_ip != "未知" else {
+            "country": "未知",
+            "region": "未知",
+            "city": "未知"
+        }
 
         rec = {
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -338,10 +338,10 @@ def save_res():
                 "city": loc_info.get("city", "未知"),
             },
             "results": {
-                "download_avg": round(data.get("download_avg", 0) * 8, 2),
-                "download_peak": round(data.get("download_peak", 0) * 8, 2),
-                "upload_avg": round(data.get("upload_avg", 0) * 8, 2),
-                "upload_peak": round(data.get("upload_peak", 0) * 8, 2),
+                "download_avg": round(data.get("download_avg", 0), 2),
+                "download_peak": round(data.get("download_peak", 0), 2),
+                "upload_avg": round(data.get("upload_avg", 0), 2),
+                "upload_peak": round(data.get("upload_peak", 0), 2),
                 "ping_avg": round(data.get("ping_avg", 0), 2),
                 "jitter": round(data.get("jitter", 0), 2),
                 "download_size": int(DL_MAX / (1024 * 1024)),
